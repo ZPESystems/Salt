@@ -9,9 +9,9 @@ from __future__ import absolute_import
 
 # Import python libs
 import logging
+import re
 from io import BytesIO
 from re import search, subn
-from re import compile as re_compile
 from os.path import exists
 from os import remove, system
 from time import sleep
@@ -284,7 +284,7 @@ def _format_ouput(sent, received, error):
     }
 
 def _escapeAnsi(line):
-    ansi_escape = re_compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
+    ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
     return ansi_escape.sub(' ', line)
 
 
@@ -353,11 +353,30 @@ def _send_cli_command(conn_obj, cli_cmd):
     return ret
 
 
+def _get_import_process_timeout(import_text):
+    ret_timeout = 1500 # arbitrary default timeout
+    count = 0
+    try:
+        match = re.findall(r"^(\/settings\/.+) .+$", import_text, re.MULTILINE)
+        if match:
+            path_list = set(match)
+            if (isinstance(path_list, list)):
+                count = len(path_list)
+            if count > 0:
+                # 15 seconds to proccess each unique path
+                ret_timeout = count * 15
+    except Exception as error: # pylint: disable=broad-except
+        _do_log_exception(error, "_get_import_process_timeout")
+
+    return ret_timeout
+
+
 def _exec_import_settings(conn_obj, import_settings_list, use_config_start=True):
     """
     Function retrieved from
     zpe.system/collections/ansible_collections/zpe/system/plugins/modules/nodegrid_import.py
     """
+    import_p_timeout = _get_import_process_timeout(("\n").join(import_settings_list))
     if use_config_start:
         conn_obj.sendline('config_start')
         conn_obj.expect_exact('/]# ')
@@ -368,7 +387,7 @@ def _exec_import_settings(conn_obj, import_settings_list, use_config_start=True)
         # TODO: Treat possible user errors here
         # Example: send "commit" in between import_settings raises "Error: Invalid line: commit"
     conn_obj.sendcontrol('d')
-    conn_obj.expect_exact('/]# ')
+    conn_obj.expect_exact('/]# ', timeout=import_p_timeout)
     output = conn_obj.before.decode("utf-8")
     if use_config_start:
         conn_obj.sendline('config_confirm')
