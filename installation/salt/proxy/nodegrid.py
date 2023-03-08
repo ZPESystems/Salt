@@ -10,7 +10,7 @@ from __future__ import absolute_import
 # Import python libs
 import logging
 import re
-from io import BytesIO
+from io import StringIO
 from re import search, subn
 from os.path import exists
 from os import remove, system
@@ -94,6 +94,7 @@ def shutdown(conn_obj):
     """
     # DETAILS["flog"].close()
     # DETAILS["fsend"].close()
+    # DETAILS["fread"].close()
     DETAILS["mread"].close()
     conn_obj.sendline("exit")
     conn_obj.close()
@@ -153,18 +154,19 @@ def _pexpect_connect(username, password, host):
 
     # Start connection
     try:
-        # conn_obj = pexpect.spawn(cmd, encoding='UTF-8', timeout=CLI_TIMEOUT)
-        conn_obj = pexpect.spawn(cmd, encoding=None, timeout=CLI_TIMEOUT)
+        conn_obj = pexpect.spawn(cmd, encoding='UTF-8', timeout=CLI_TIMEOUT)
         conn_obj.setwinsize(500, 250)
 
         # Debug purposes only
-        # DETAILS["flog"] = open(PLOG, "wb")
-        # DETAILS["fsend"] = open(PSLOG, "wb")
+        # DETAILS["flog"] = open(PLOG, "w")
+        # DETAILS["fsend"] = open(PSLOG, "w")
+        # DETAILS["fread"] = open(PRLOG, "w")
         # conn_obj.logfile = DETAILS["flog"]
         # conn_obj.logfile_send = DETAILS["fsend"]
+        # conn_obj.logfile_read = DETAILS["fread"]
 
         # Setup CLI Raw output in memory file
-        DETAILS["mread"] = BytesIO(b"")
+        DETAILS["mread"] = StringIO("")
         conn_obj.logfile_read = DETAILS["mread"]
 
         conn_obj.expect_exact('Password:')
@@ -283,23 +285,24 @@ def _format_ouput(sent, received, error):
         "errors": error
     }
 
-def _escapeAnsi(line):
+
+def _escape_ansi(line):
     ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
     return ansi_escape.sub(' ', line)
 
 
-def _get_cli_output():
+def _parse_cli_output(out):
     output = ""
-    out = DETAILS["mread"].getvalue().decode('utf-8')
-    log.debug("out='"+str(out)+"'")
-    # log.debug("out="+repr(out))
-    out = out.replace("\rPassword: \r\n", "")
-    out = out.replace(" .sessionpageout undefined=no\r\n", "")
-    out = out.replace("no\r\r\n", "")
 
-    for line in _escapeAnsi(out).splitlines():
+    for line in _escape_ansi(out).splitlines():
         # log.debug("repr line="+repr(line))
         # log.debug("str  line='"+str(line)+"'")
+        line, check = subn(CLI_PROMPT_REGEX, " ", line)
+        log.debug("_parse_cli_output check="+str(check))
+        log.debug("_parse_cli_output line="+str(line))
+        if check > 0:
+            log.debug("0 removing line='"+repr(line)+"'")
+            continue
         if not line.strip():
             continue
         if line.endswith("#]"):
@@ -315,16 +318,26 @@ def _get_cli_output():
             log.debug("4 removing line='"+repr(line)+"'")
             continue
         if not line.isprintable():
-            log.debug("5 removing line='"+repr(line)+"'")
-            continue
-        line, check = subn(CLI_PROMPT_REGEX, " ", line)
-        log.debug("_get_cli_output check="+str(check))
-        if check > 0:
-            continue
+            line_c = line.split('\x07')
+            if (len(line_c) > 1 and line_c[1] == ''):
+                log.debug("5 removing line='"+repr(line)+"'")
+                continue
         output = output + line.strip() + "\n"
-    log.debug("_get_cli_output output="+str(output))
-    # log.debug("_get_cli_output repr output="+repr(output))
+    log.debug("_parse_cli_output output="+str(output))
+    # log.debug("_parse_cli_output repr output="+repr(output))
     return output
+
+
+def _get_cli_raw_output(conn_obj):
+    # extra expect to get full buffer output
+    _sendline(conn_obj, "\n")
+    out = DETAILS["mread"].getvalue()
+    log.debug("_get_cli_raw_output mread='"+str(out)+"'")
+    log.debug("_get_cli_raw_output repr mread='"+repr(out)+"'")
+    out = out.replace("\rPassword: \r\n", "")
+    out = out.replace(" .sessionpageout undefined=no\r\n", "\n")
+    out = out.replace("no\r\r\n", "\n")
+    return _parse_cli_output(out)
 
 
 def _do_log_exception(error, function=""):
@@ -334,23 +347,55 @@ def _do_log_exception(error, function=""):
     "Traceback: " + traceback.format_exc())
 
 
-def _send_cli_command(conn_obj, cli_cmd):
-    ret = -1
-    # multiple lines
-    if len(cli_cmd.splitlines()) > 2:
-        log.debug("DEBUG multiline")
-        for cmd in cli_cmd.splitlines():
-            ret = _sendline(conn_obj, cmd)
-    else:
-        # single line
-        log.debug("DEBUG singleline")
-        ret = _sendline(conn_obj, cli_cmd)
+def _get_cli(conn_obj):
+    conn_obj.sendline('.sessionpageout undefined=no')
+    conn_obj.expect_exact('/]# ')
 
-    # extra expect to get full buffer output
-    _sendline(conn_obj, "\n")
-    _expect(conn_obj)
 
-    return ret
+def _execute_cmd(cmd_cli, cmd, get_output):
+    ptimeout = 60
+    if 'export_settings' in cmd or 'import_settings' in cmd:
+        ptimeout = _get_import_process_timeout(cmd)
+    log.debug("_execute_cmd cmd='"+str(cmd)+"'")
+    cmd_cli.sendline(cmd)
+    ret = cmd_cli.expect_exact(CLI_PROMPT, timeout=ptimeout)
+    log.debug("_execute_cmd ret='"+str(ret)+"'")
+    output = cmd_cli.before
+    # remove last prompt line lignering from the expect()
+    aux = output.splitlines()
+    aux.pop(-1)
+    output = "\n".join(aux)
+    log.debug("_execute_cmd output='"+str(output)+"'")
+    if get_output:
+        output = output.replace(cmd, '')
+    output = _parse_cli_output(output)
+    return output
+
+
+def _send_cli_command(conn_obj, cli_cmd, get_output=True):
+    cmd_results = []
+    cmd = ""
+    cmd_output = ""
+
+    try:
+        _get_cli(conn_obj)
+        cmd_list = cli_cmd.splitlines()
+        if not isinstance(cmd_list, list):
+            cmd_list = cli_cmd.split('\n')
+        log.debug("_send_cli_command cmd_list='"+str(cmd_list)+"'")
+
+        for cmd in cmd_list:
+            cmd_output = _execute_cmd(conn_obj, cmd, get_output)
+            # if not get_output:
+            #     continue
+            cmd_result = {'command': cmd, 'output': cmd_output}
+            cmd_results.append(cmd_result)
+    except Exception as error: # pylint: disable=broad-except
+        _do_log_exception(error, "_send_cli_command")
+        cmd_result = {'command': cmd, 'output': "Error: Salt exception"}
+        cmd_results.append(cmd_result)
+
+    return cmd_results
 
 
 def _get_import_process_timeout(import_text):
@@ -614,11 +659,13 @@ def check_version(desired_version):
 
 def cli(command, **kwargs): # pylint: disable=unused-argument
     """
-    Returns raw CLI output of the command passed as argument.
+    Returns CLI output of the command passed as argument.
     In case of error, returns CLI error message.
 
     command
         Command to be executed on the device.
+    raw
+        Returns raw CLI output of the command
 
     CLI Example:
     .. code-block:: bash
@@ -626,16 +673,15 @@ def cli(command, **kwargs): # pylint: disable=unused-argument
         salt '*' nodegrid.cli "show /settings/license"
         salt '*' nodegrid.cli "show /settings/devices"
         salt '*' nodegrid.cli "reboot --force"
-        salt '*' nodegrid.cli "cd /settings/system_preferences/
+        salt '*' nodegrid.cli raw=True "cd /settings/system_preferences/
         set idle_timeout=3600
         set enable_banner=yes
         commit"
-        salt '*' nodegrid.cli "cd /settings/license
+        salt '*' nodegrid.cli raw=True "cd /settings/license
         add
         set license_key=LICENSE
         commit
         cancel"
-        "
     """
     try:
         log.debug("PROXY zpe_nodegrid CLI")
@@ -649,16 +695,14 @@ def cli(command, **kwargs): # pylint: disable=unused-argument
         if not conn_obj:
             return ret
 
-        ret = _send_cli_command(conn_obj, '.sessionpageout undefined=no')
+        raw = kwargs.get('raw', False)
+        log.debug("raw: ["+ str(raw) +"]")
 
-        ret = _send_cli_command(conn_obj, command)
+        output = _send_cli_command(conn_obj, command, get_output=(not raw))
 
-        if ret == -1:
-            return False
+        if raw:
+            output = _get_cli_raw_output(conn_obj)
 
-        output = _get_cli_output()
-
-        shutdown(conn_obj)
         return output
 
     except Exception as error: # pylint: disable=broad-except
@@ -714,7 +758,7 @@ def cli_shell(command):
     """
     Execute given command in user shell.
 
-    Returns raw CLI output of the command passed as argument.
+    Returns CLI output of the command passed as argument.
 
     CLI Example:
     .. code-block:: bash
@@ -729,7 +773,7 @@ def cli_root_shell(command):
     """
     Execute given command in root shell.
 
-    Returns raw CLI output of the command passed as argument.
+    Returns CLI output of the command passed as argument.
 
     CLI Example:
     .. code-block:: bash
@@ -810,7 +854,7 @@ def import_settings_file(file, **kwargs):
 
 def export_settings(path, **kwargs):
     """
-    Returns raw CLI output of export_settings procedure on the given CLI path.
+    Returns CLI output of export_settings procedure on the given CLI path.
 
     path
         CLI path to get exporte and get the data from.
@@ -832,14 +876,9 @@ def export_settings(path, **kwargs):
     if not conn_obj:
         return ret
 
-    ret = _send_cli_command(conn_obj, "export_settings " + path)
-    # TODO: remove lines that contains only CLI_PROMPT
-    # Example: last couple lines
-
-    if ret == -1:
-        return False
-
-    output = _get_cli_output()
+    output = _send_cli_command(conn_obj, "export_settings " + path, get_output=True)
+    if isinstance(output, list) and 'output' in output[0].keys():
+        output = output[0]['output']
 
     shutdown(conn_obj)
     return output
@@ -847,7 +886,7 @@ def export_settings(path, **kwargs):
 
 def get_system_about():
     """
-    Returns raw CLI output of the command: `show /system/about`
+    Returns CLI output of the command: `show /system/about`
     CLI Example:
     .. code-block:: bash
         salt '*' nodegrid.get_system_about
@@ -926,7 +965,6 @@ def save_settings(**kwargs):
             "\nset the_path_in_url_to_be_used_as_absolute_path_name="+kwargs["absolute_name"] + \
             "\ncommit"
 
-    log.debug("save_settings cmd="+str(cmd))
     log.debug("save_settings cmd="+str(cmd))
     if cmd:
         ret = __proxy__["nodegrid.cli"](cmd)    # pylint: disable=undefined-variable

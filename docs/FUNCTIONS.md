@@ -67,7 +67,7 @@ salt '*' nodegrid.check_version 5.6.9
 
 ## salt.proxy.nodegrid.get_system_about()
 
-Returns raw CLI output of the command: `show /system/about`
+Returns CLI output of the command: `show /system/about`
 
 CLI Example:
 ```bash
@@ -87,7 +87,7 @@ salt '*' nodegrid.add_license LICENSE_KEY
 
 ## salt.proxy.nodegrid.cli(command)
 
-Returns raw CLI output of the command passed as argument.
+Returns CLI output of the command passed as argument.
 
 In case of error, returns CLI error message.
 
@@ -95,17 +95,21 @@ command:
 
 - Command to be executed on the device.
 
+raw=False
+
+- (optional, boolean) Returns raw CLI output of the command
+
 CLI Example:
 ```bash
 salt '*' nodegrid.cli "show /system/about"
 salt '*' nodegrid.cli "show /settings/license"
 salt '*' nodegrid.cli "show /settings/devices"
 salt '*' nodegrid.cli "reboot --force"
-salt '*' nodegrid.cli "cd /settings/system_preferences/
+salt '*' nodegrid.cli raw=True "cd /settings/system_preferences/
 set idle_timeout=3600
 set enable_banner=yes
 commit"
-salt '*' nodegrid.cli "cd /settings/license
+salt '*' nodegrid.cli raw=True "cd /settings/license
 add
 set license_key=LICENSE
 commit"
@@ -140,7 +144,7 @@ salt '*' nodegrid.cli salt://cli/file.cli
 """
 Execute given command in user shell.
 
-Returns raw CLI output of the command passed as argument.
+Returns CLI output of the command passed as argument.
 
 CLI Example:
 ```bash
@@ -150,7 +154,7 @@ salt '*' nodegrid.cli_shell "ls /var/sw"
 ## salt.proxy.nodegrid.cli_root_shell(command)
 Execute given command in root shell.
 
-Returns raw CLI output of the command passed as argument.
+Returns CLI output of the command passed as argument.
 
 CLI Example:
 ```bash
@@ -195,7 +199,7 @@ salt '*' nodegrid.import_settings_file salt://cli/import_template.cli --timeout 
 
 ## salt.proxy.nodegrid.export_settings(path)
 
-Returns raw CLI output of export_settings procedure on the given CLI path.
+Returns CLI output of export_settings procedure on the given CLI path.
 
 path:
 - CLI path to export and get the data from.
