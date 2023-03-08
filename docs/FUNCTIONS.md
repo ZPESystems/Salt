@@ -67,7 +67,7 @@ salt '*' nodegrid.check_version 5.6.9
 
 ## salt.proxy.nodegrid.get_system_about()
 
-Returns raw CLI output of the command: `show /system/about`
+Returns CLI output of the command: `show /system/about`
 
 CLI Example:
 ```bash
@@ -144,7 +144,7 @@ salt '*' nodegrid.cli salt://cli/file.cli
 """
 Execute given command in user shell.
 
-Returns raw CLI output of the command passed as argument.
+Returns CLI output of the command passed as argument.
 
 CLI Example:
 ```bash
@@ -154,7 +154,7 @@ salt '*' nodegrid.cli_shell "ls /var/sw"
 ## salt.proxy.nodegrid.cli_root_shell(command)
 Execute given command in root shell.
 
-Returns raw CLI output of the command passed as argument.
+Returns CLI output of the command passed as argument.
 
 CLI Example:
 ```bash

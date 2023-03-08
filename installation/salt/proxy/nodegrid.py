@@ -295,8 +295,8 @@ def _parse_cli_output(out):
     output = ""
 
     for line in _escape_ansi(out).splitlines():
-        log.debug("repr line="+repr(line))
-        log.debug("str  line='"+str(line)+"'")
+        # log.debug("repr line="+repr(line))
+        # log.debug("str  line='"+str(line)+"'")
         line, check = subn(CLI_PROMPT_REGEX, " ", line)
         log.debug("_parse_cli_output check="+str(check))
         log.debug("_parse_cli_output line="+str(line))
@@ -324,7 +324,7 @@ def _parse_cli_output(out):
                 continue
         output = output + line.strip() + "\n"
     log.debug("_parse_cli_output output="+str(output))
-    log.debug("_parse_cli_output repr output="+repr(output))
+    # log.debug("_parse_cli_output repr output="+repr(output))
     return output
 
 
@@ -358,8 +358,14 @@ def _execute_cmd(cmd_cli, cmd, get_output):
         ptimeout = _get_import_process_timeout(cmd)
     log.debug("_execute_cmd cmd='"+str(cmd)+"'")
     cmd_cli.sendline(cmd)
-    cmd_cli.expect_exact(CLI_PROMPT, timeout=ptimeout)
+    ret = cmd_cli.expect_exact(CLI_PROMPT, timeout=ptimeout)
+    log.debug("_execute_cmd ret='"+str(ret)+"'")
     output = cmd_cli.before
+    # remove last prompt line lignering from the expect()
+    aux = output.splitlines()
+    aux.pop(-1)
+    output = "\n".join(aux)
+    log.debug("_execute_cmd output='"+str(output)+"'")
     if get_output:
         output = output.replace(cmd, '')
     output = _parse_cli_output(output)
@@ -752,7 +758,7 @@ def cli_shell(command):
     """
     Execute given command in user shell.
 
-    Returns raw CLI output of the command passed as argument.
+    Returns CLI output of the command passed as argument.
 
     CLI Example:
     .. code-block:: bash
@@ -767,7 +773,7 @@ def cli_root_shell(command):
     """
     Execute given command in root shell.
 
-    Returns raw CLI output of the command passed as argument.
+    Returns CLI output of the command passed as argument.
 
     CLI Example:
     .. code-block:: bash
@@ -848,7 +854,7 @@ def import_settings_file(file, **kwargs):
 
 def export_settings(path, **kwargs):
     """
-    Returns raw CLI output of export_settings procedure on the given CLI path.
+    Returns CLI output of export_settings procedure on the given CLI path.
 
     path
         CLI path to get exporte and get the data from.
@@ -880,7 +886,7 @@ def export_settings(path, **kwargs):
 
 def get_system_about():
     """
-    Returns raw CLI output of the command: `show /system/about`
+    Returns CLI output of the command: `show /system/about`
     CLI Example:
     .. code-block:: bash
         salt '*' nodegrid.get_system_about
