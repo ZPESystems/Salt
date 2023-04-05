@@ -57,6 +57,8 @@ Clone the example repository and install:
 ```shell script
 git clone https://github.com/ZPESystems/Salt.git
 cd Salt
+sudo mkdir -p /srv/salt/_proxy/
+sudo mkdir -p /srv/salt/_modules/
 sudo cp installation/salt/proxy/nodegrid.py /srv/salt/_proxy/
 sudo cp installation/salt/modules/nodegrid.py /srv/salt/_modules/
 ```

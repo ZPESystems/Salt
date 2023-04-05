@@ -10,31 +10,31 @@ Download the repository as a zip or use the git clone command.
 - Download this repository as zip file
 - Connect to Nodegrid the WebUI as a admin user
 - Open the File Manager and navigate to admin_group
-- Upload the downloaded file `zpe.nodegrid_examples-main.zip` into the folder
+- Upload the downloaded file `Salt-main.zip` into the folder
 - Close the File Manager window
 - Open a Console connection to Nodegrid
 - Access the shell as an admin user using the `shell` command
-- Navigate to `/var/local/file_manager/admin_group/` 
+- Navigate to `/var/local/file_manager/admin_group/`
 ```shell script
 cd /var/local/file_manager/admin_group/
 ```
 - Extract the zip file with
 ```shell script
-mv zpe.nodegrid_examples-main.zip zpe.nodegrid_examples.zip
-unzip zpe.nodegrid_examples.zip
+unzip Salt-main.zip
+mv Salt-main Salt
 ```
 
 ## Using git clone command
 - Connect to the Nodegrid WebUI as a admin user
 - Open the Console
 - Access the shell as an admin user using the `shell` command
-- Navigate to `/var/local/file_manager/admin_group/` 
+- Navigate to `/var/local/file_manager/admin_group/`
 ```shell script
 cd /var/local/file_manager/admin_group/
 ```
 - Clone the repository
 ```shell script
-git clone https://github.com/ZPESystems/zpe.nodegrid_examples.git
+git clone https://github.com/ZPESystems/Salt.git
 ```
 
 ## Install on Nodegrid
@@ -45,7 +45,7 @@ cd /var/local/file_manager/admin_group/
 ```
 - Extract the zip file with
 ```shell script
-unzip zpe.nodegrid_examples/salt/installation/ipks/saltstack_IPKs.zip
+unzip Salt/installation/ipks/saltstack_IPKs.zip
 ```
 - Install on IPKs on Nodegrid
 ```shell script
