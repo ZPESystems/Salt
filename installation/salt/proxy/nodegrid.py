@@ -154,7 +154,7 @@ def _pexpect_connect(username, password, host):
 
     # Start connection
     try:
-        conn_obj = pexpect.spawn(cmd, encoding='UTF-8', timeout=CLI_TIMEOUT)
+        conn_obj = pexpect.spawn(cmd, encoding="utf-8", timeout=CLI_TIMEOUT)
         conn_obj.setwinsize(500, 250)
 
         # Debug purposes only
@@ -433,7 +433,7 @@ def _exec_import_settings(conn_obj, import_settings_list, use_config_start=True)
         # Example: send "commit" in between import_settings raises "Error: Invalid line: commit"
     conn_obj.sendcontrol('d')
     conn_obj.expect_exact('/]# ', timeout=import_p_timeout)
-    output = conn_obj.before.decode("utf-8")
+    output = conn_obj.before
     if use_config_start:
         conn_obj.sendline('config_confirm')
         conn_obj.expect_exact('/]# ')
